@@ -9,6 +9,28 @@
 
 ## Working features
 
+The default page is the farmer-facing **AI in Action** workflow: pick a concern,
+find a paired shade/open observation window, enter a short actual observation,
+revisit previous notes, and prepare a consultation memo. Technical GIS and
+learning details remain available in separate views and disclosure panels.
+
+- Observation windows require at least 30 continuous minutes of contrasting
+  geometric shadow states between the selected probes, within the displayed
+  analysis date. They are suggestions for measurement, not irrigation or disease
+  prescriptions. The hypothetical default scene is labelled at the point of use.
+- Quick entries require an explicitly selected plant status. They preserve
+  previously recorded numeric observations for the same farm/date, write into
+  the existing weekly diary, and never auto-fill synthetic temperatures or growth.
+- Optional browser speech recognition inserts editable text only after the user
+  starts it; it never saves or diagnoses automatically. Availability depends on
+  browser/device support. Leaving the view or submitting cancels active capture.
+- Seven-day measurement reminders are calculated from recorded heights. These
+  are in-app prompts, not background notifications.
+- The consultation TXT combines user-entered farm records, questions, and a
+  separately labelled GIS provenance section. It is downloaded locally and is
+  not sent to an institution. Benefits such as labour reduction and yield gains
+  have not been measured or claimed as achieved.
+
 1. Date/location-specific solar elevation and azimuth, implemented independently from NOAA's public equations: https://gml.noaa.gov/grad/solcalc/solareqns.PDF
 2. Local elevation-grid interpolation and 3m ray marching against terrain and rectangular buildings. Probe height is 0.5m. Daily direct-sun opportunity is integrated at 15-minute intervals; the visual daily heatmap uses 30-minute intervals. Geographic limits and finite grid extent are explicit.
 3. Editable building-height counterfactuals, point selection, plot comparison, sun-path playback, and terrain contours interpolated from the active grid.

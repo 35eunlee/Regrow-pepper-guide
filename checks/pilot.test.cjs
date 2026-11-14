@@ -4,6 +4,7 @@ const fs=require('node:fs');
 const vm=require('node:vm');
 const path=require('node:path');
 const E=require('../pilot-engine.js');
+const F=require('../pilot-actions.js');
 
 const flat=()=>({...E.demoScene(),elevations:E.demoScene().elevations.map(()=>80),buildings:[]});
 test('solar position respects KST, seasons, cardinal directions, and night',()=>{
@@ -65,20 +66,54 @@ test('diary bridge needs exact seven-day pairs, at least four measured days, and
   const other=structuredClone(logs);Object.values(other).forEach(x=>x.area='운곡면');assert.equal(E.recordsFromDaily(other).length,0);
   const missing=structuredClone(logs);Object.values(missing).slice(0,7).forEach(x=>x.sunHours=null);assert.equal(E.recordsFromDaily(missing).length,0);
 });
+
+test('farmer visit plans require a real, continuous shade/open contrast',()=>{
+  const bins=Array.from({length:96},(_,i)=>({minute:i*15,lit:i>=24&&i<72,reason:i>=24&&i<72?'sun':'night'}));
+  const shaded=structuredClone(bins);for(let i=40;i<44;i++)shaded[i]={...shaded[i],lit:false,reason:'building'};
+  const selected={id:'B',name:'B plot',analysis:{bins:shaded}},others=[{id:'A',name:'A plot',analysis:{bins}}];
+  const v=F.visitWindow(selected,others);assert.equal(v.label,'10:00–11:00');assert.equal(v.comparison,'A');
+  assert.equal(F.visitWindow({...selected,analysis:{bins}},others).found,false);
+  const brief=structuredClone(bins);brief[40]={...brief[40],lit:false,reason:'terrain'};
+  assert.equal(F.visitWindow({...selected,analysis:{bins:brief}},others).found,false);
+});
+
+test('farmer reminders and consultation notes use entered farm records and distinguish the GIS demo',()=>{
+  const farm={region:'충청남도 청양군',area:'청양읍'},logs={
+    '2027-05-12':{...farm,heightCm:30,status:'주의',note:'동쪽 잎 처짐',min:'',max:''},
+    '2027-05-19':{...farm,status:'양호',note:'새잎을 확인했어요.'},
+    '2027-05-21':{...farm,status:'문제',note:'미래 기록'},
+    '2027-05-20':{...farm,area:'운곡면',status:'문제',note:'다른 농장'}
+  };
+  const x=F.farmContext({farm,logs,today:'2027-05-20',symptoms:[]});
+  assert.equal(x.records.length,2);assert.equal(x.needsFollowup,false);assert.equal(x.nextMeasurement,'2027-05-19');assert.equal(x.measurementDue,true);
+  const report=F.consultationText({farm,context:x,visit:{found:false},date:'2027-05-20',sourceKind:'synthetic',modelMode:'demo'});
+  assert(report.includes('최저 미기록°C'));assert(report.includes('가상 지형·건물의 시연'));assert(!report.includes('미래 기록'));assert(!report.includes('다른 농장'));assert(report.includes('동쪽 잎 처짐'));
+});
 test('UI renders and draws, responds to time/plot controls, switches modes, and escapes labels',()=>{
   const saved=new Map(),events={},root={innerHTML:''},clock={textContent:''};let drawCalls=0;
   const graphics=new Proxy({},{get:()=>()=>{drawCalls++;}});
   const canvas={clientWidth:640,clientHeight:430,getContext:()=>graphics,getBoundingClientRect:()=>({left:0,top:0}),focus:()=>{}};
   const scene=E.demoScene();scene.provenance.title='<img src=x onerror=alert(1)>';
   saved.set('rg-pilot-v1',JSON.stringify({version:1,scene}));
-  const context={console,RegrowPilotEngine:E,localStorage:{getItem:k=>saved.get(k)||null,setItem:(k,v)=>saved.set(k,v)},document:{getElementById:id=>id==='pfScene'?canvas:id==='pilotRoot'?root:id==='pfClock'?clock:null,addEventListener:(k,f)=>events[k]=f},addEventListener:()=>{},cancelAnimationFrame:()=>{},requestAnimationFrame:()=>1,setTimeout:()=>0,Date,Math,JSON,Blob,URL};context.window=context;
+  const fields={pfQuickDate:{value:F.iso(new Date())},pfQuickNote:{value:'동쪽 줄의 잎을 직접 살폈어요.'}};
+  let recognizer=null,aborted=0,started=0;class Speech{constructor(){recognizer=this;}start(){started++;}abort(){aborted++;}stop(){}}
+  const context={console,SpeechRecognition:Speech,RegrowPilotEngine:E,RegrowFarmerActions:F,localStorage:{getItem:k=>saved.get(k)||null,setItem:(k,v)=>saved.set(k,v)},document:{getElementById:id=>id==='pfScene'?canvas:id==='pilotRoot'?root:id==='pfClock'?clock:fields[id]||null,addEventListener:(k,f)=>events[k]=f},addEventListener:()=>{},cancelAnimationFrame:()=>{},requestAnimationFrame:()=>1,setTimeout:()=>0,Date,Math,JSON,Blob,URL};context.window=context;
   vm.createContext(context);vm.runInContext(fs.readFileSync(path.join(__dirname,'../pilot-ui.js'),'utf8'),context);
   const P=context.RegrowPilot;
-  let html=P.page({logs:{}});P.mount({logs:{}});
-  assert(drawCalls>100);
+  let captured=null;const realLogs={},uiContext={logs:realLogs,onQuickLog:r=>{captured=r;realLogs[r.date]={...r,region:undefined,area:''};return true;}};
+  let html=P.page(uiContext);P.mount(uiContext);
+  assert(html.includes('AI IN ACTION'));assert(html.includes('pfQuickForm'));assert(html.includes('pfActionInspect'));assert(!html.includes('pf-growth-number'));
+  const click=dataset=>events.click({target:{closest:selector=>selector==='#pilotRoot'?{}:selector==='button'?{dataset,hasAttribute:()=>false}:null}});
+  const speechButton={dataset:{},hasAttribute:name=>name==='data-pf-speech',setAttribute:()=>{},textContent:''};
+  events.click({target:{closest:selector=>selector==='#pilotRoot'?root:selector==='button'?speechButton:null}});
+  assert.equal(started,1);recognizer.onresult({results:[[{transcript:'새잎도 확인했어요.'}]]});assert.equal(captured,null);assert(fields.pfQuickNote.value.endsWith('새잎도 확인했어요.'));
+  click({pfQuickStatus:'주의'});
+  events.submit({preventDefault:()=>{},target:{id:'pfQuickForm',closest:()=>root}});
+  assert.equal(aborted,1);
+  assert.equal(captured.status,'주의');assert.equal(captured.note,fields.pfQuickNote.value);assert.equal(captured.min,undefined);
+  click({pfTab:'solar'});html=P.page(uiContext);assert(drawCalls>100);
   events.input({target:{id:'pfTime',value:'540',dataset:{},closest:()=>root}});assert.equal(clock.textContent,'09:00');
   assert(html.includes('pfScene'));assert(!html.includes('<img src=x'));assert(html.includes('&lt;img src=x'));
-  const click=dataset=>events.click({target:{closest:selector=>selector==='#pilotRoot'?{}:selector==='button'?{dataset,hasAttribute:()=>false}:null}});
   click({pfLayer:'hours'});assert(drawCalls>1000);click({pfPlot:'A'});html=P.page({logs:{}});assert(html.includes('A · 남서 시험구'));
   click({pfTab:'growth'});html=P.page({logs:{}});assert(html.includes('pfScenarioForm'));assert(html.includes('합성 데이터로 보는 동작 예시'));
   click({pfMode:'field'});html=P.page({logs:{}});assert(html.includes('0 / 12건'));assert(!html.includes('pf-growth-number'));
@@ -89,8 +124,15 @@ test('existing site loads the new route in its actual script order and keeps dia
   const elements=new Map(),events={};const element=()=>({value:'',style:{},dataset:{},innerHTML:'',textContent:'',classList:{toggle:()=>{},add:()=>{},remove:()=>{}},setAttribute:()=>{},addEventListener:()=>{},showModal:()=>{},close:()=>{}});
   const get=s=>{if(!elements.has(s))elements.set(s,element());return elements.get(s);};
   const context={console,localStorage:{getItem:()=>null,setItem:()=>{}},document:{querySelector:get,querySelectorAll:()=>[],getElementById:()=>null,body:{classList:{toggle:()=>{}}},documentElement:{style:{}},addEventListener:(k,f)=>events[k]=f},location:{hash:'#pilot'},addEventListener:()=>{},scrollTo:()=>{},cancelAnimationFrame:()=>{},requestAnimationFrame:()=>1,setTimeout:()=>0,clearTimeout:()=>{},Date,Math,JSON,Blob,URL,navigator:{}};context.window=context;context.globalThis=context;vm.createContext(context);
-  for(const file of ['regions.js','pilot-engine.js','pilot-ui.js','app.js'])vm.runInContext(fs.readFileSync(path.join(__dirname,'..',file),'utf8'),context,{filename:file});
-  assert(get('#app').innerHTML.includes('pilotRoot'));assert(get('#app').innerHTML.includes('시간을 움직여 그늘을 보세요'));
+  for(const file of ['regions.js','pilot-engine.js','pilot-actions.js','pilot-ui.js','app.js'])vm.runInContext(fs.readFileSync(path.join(__dirname,'..',file),'utf8'),context,{filename:file});
+  assert(get('#app').innerHTML.includes('pilotRoot'));assert(get('#app').innerHTML.includes('pfQuickForm'));
   const calendar=vm.runInContext('weekCalendar()',context);
   for(const id of ['dayPilotPlot','dayHeight','daySunHours','dayMoisture'])assert(calendar.includes(id));
+  vm.runInContext("farm={region:'충청남도 청양군',area:'청양읍',stage:'수확 중'};dailyLogs[isoDate(new Date())]={region:farm.region,area:farm.area,min:12,max:24,heightCm:34,note:'이전 메모'};",context);
+  assert.equal(vm.runInContext("savePilotQuickLog({date:isoDate(new Date()),status:'주의',note:'오늘 직접 본 메모'})",context),true);
+  assert.equal(vm.runInContext('dailyLogs[isoDate(new Date())].min',context),12);
+  assert.equal(vm.runInContext('dailyLogs[isoDate(new Date())].heightCm',context),34);
+  assert.equal(vm.runInContext('dailyLogs[isoDate(new Date())].note',context),'오늘 직접 본 메모');
+  assert.equal(vm.runInContext("homeDailySummary({min:'',max:'',condition:'미기록',note:'물 준 뒤 살폈어요.'})",context),'물 준 뒤 살폈어요.');
+  assert.equal(vm.runInContext("savePilotQuickLog({date:'2100-01-01',status:'주의',note:'미래'})",context),false);
 });
