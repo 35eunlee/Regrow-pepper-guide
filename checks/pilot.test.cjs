@@ -5,6 +5,8 @@ const vm=require('node:vm');
 const path=require('node:path');
 const E=require('../pilot-engine.js');
 const F=require('../pilot-actions.js');
+global.RegrowPilotEngine=E;
+const P=require('../pilot-place.js');
 
 const flat=()=>({...E.demoScene(),elevations:E.demoScene().elevations.map(()=>80),buildings:[]});
 test('solar position respects KST, seasons, cardinal directions, and night',()=>{
@@ -48,6 +50,25 @@ test('GIS imports enforce pilot bounds, source metadata, grid size, and obstacle
   x=copy();x.buildings[0].height=101;assert.throws(()=>E.validateScene(x));
   x=copy();x.provenance.kind='verified';assert.equal(E.validateScene(x).provenance.kind,'uploaded');
   assert(Number.isFinite(E.elevation(s,300,240)));assert(Number.isFinite(E.terrainStats(s,{x:0,y:0}).slope));
+});
+
+test('named-place geometry keeps real footprints and missing heights separate from assumptions',()=>{
+  const s=P.placeholder(),a=P.geographic(s,130,110),b=P.geographic(s,160,110),c=P.geographic(s,160,140),d=P.geographic(s,130,140);
+  const fixture={elements:[{type:'way',id:1391301181,tags:{building:'public',name:'청양군농업기술센터'},geometry:[a,b,c,d,a]}]};
+  const scene=P.parseBuildings(fixture);
+  assert.equal(scene.lat,36.42328);assert.equal(scene.buildings[0].height,null);assert.equal(scene.buildings[0].heightSource,'unknown');assert.equal(P.ready(scene),false);
+  assert(scene.buildings[0].footprint.length===5);assert(E.buildingAt(scene,145,125));
+  scene.buildings[0].height=6;scene.buildings[0].heightSource='user_assumed';assert.equal(P.ready(scene),true);
+  assert.equal(scene.terrainKind,'unavailable');assert.equal(scene.elevations.every(x=>x===0),true);
+  assert.equal(P.temperatureAt(null,'2027-05-20',600),null);
+  const w={rows:[{time:'2027-05-20T09:00',temp:14.3},{time:'2027-05-20T12:00',temp:19.1}]};
+  assert.equal(P.temperatureAt(w,'2027-05-20',540).temp,14.3);assert.equal(P.temperatureAt(w,'2027-05-21',540),null);
+});
+
+test('polygon footprints do not shade their bounding-box corners',()=>{
+  const s=flat();s.buildings=[{id:'T',name:'triangle',x:100,y:100,width:40,depth:40,height:30,footprint:[[100,100],[140,100],[100,140]]}];
+  assert(E.buildingAt(s,105,105));assert(!E.buildingAt(s,135,135));
+  assert.equal(E.blocked(s,{x:135,y:150},{elevation:20,east:0,north:-1}).reason,'building');
 });
 test('ridge learning uses time-held-out validation and declines insufficient data',()=>{
   const rows=E.demoRecords(),t=E.train(rows);
@@ -124,8 +145,11 @@ test('existing site loads the new route in its actual script order and keeps dia
   const elements=new Map(),events={};const element=()=>({value:'',style:{},dataset:{},innerHTML:'',textContent:'',classList:{toggle:()=>{},add:()=>{},remove:()=>{}},setAttribute:()=>{},addEventListener:()=>{},showModal:()=>{},close:()=>{}});
   const get=s=>{if(!elements.has(s))elements.set(s,element());return elements.get(s);};
   const context={console,localStorage:{getItem:()=>null,setItem:()=>{}},document:{querySelector:get,querySelectorAll:()=>[],getElementById:()=>null,body:{classList:{toggle:()=>{}}},documentElement:{style:{}},addEventListener:(k,f)=>events[k]=f},location:{hash:'#pilot'},addEventListener:()=>{},scrollTo:()=>{},cancelAnimationFrame:()=>{},requestAnimationFrame:()=>1,setTimeout:()=>0,clearTimeout:()=>{},Date,Math,JSON,Blob,URL,navigator:{}};context.window=context;context.globalThis=context;vm.createContext(context);
-  for(const file of ['regions.js','pilot-engine.js','pilot-actions.js','pilot-ui.js','app.js'])vm.runInContext(fs.readFileSync(path.join(__dirname,'..',file),'utf8'),context,{filename:file});
+  for(const file of ['regions.js','pilot-engine.js','pilot-actions.js','pilot-place.js','pilot-map-view.js','pilot-ui.js','app.js'])vm.runInContext(fs.readFileSync(path.join(__dirname,'..',file),'utf8'),context,{filename:file});
   assert(get('#app').innerHTML.includes('pilotRoot'));assert(get('#app').innerHTML.includes('pfQuickForm'));
+  events.click({target:{closest:s=>s==='#pilotRoot'?{}:s==='button'?{dataset:{pfTab:'solar'},hasAttribute:()=>false}:null}});
+  const named=context.RegrowPilot.page({logs:{}});assert(named.includes('청양군농업기술센터 일대'));assert(named.includes('구봉로 1026-84'));assert(named.includes('기상청 청양읍 동네예보'));assert(named.includes('높이 확인 후'));
+  const home=vm.runInContext('home()',context);assert.equal((home.match(/class="card shortcut"/g)||[]).length,6);assert(home.includes('id="homeFeatureGrid"'));
   const calendar=vm.runInContext('weekCalendar()',context);
   for(const id of ['dayPilotPlot','dayHeight','daySunHours','dayMoisture'])assert(calendar.includes(id));
   vm.runInContext("farm={region:'충청남도 청양군',area:'청양읍',stage:'수확 중'};dailyLogs[isoDate(new Date())]={region:farm.region,area:farm.area,min:12,max:24,heightCm:34,note:'이전 메모'};",context);

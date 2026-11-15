@@ -43,16 +43,18 @@
     const a=scene.elevations[j*scene.cols+i],b=scene.elevations[j*scene.cols+i+1],c=scene.elevations[(j+1)*scene.cols+i],d=scene.elevations[(j+1)*scene.cols+i+1];
     return a*(1-u)*(1-v)+b*u*(1-v)+c*(1-u)*v+d*u*v;
   }
-  function buildingAt(scene,x,y) { return scene.buildings.find(b=>b.height>0&&x>=b.x&&x<=b.x+b.width&&y>=b.y&&y<=b.y+b.depth); }
+  function inFootprint(b,x,y){if(!b.footprint)return x>=b.x&&x<=b.x+b.width&&y>=b.y&&y<=b.y+b.depth;let inside=false;for(let i=0,j=b.footprint.length-1;i<b.footprint.length;j=i++){const [xi,yi]=b.footprint[i],[xj,yj]=b.footprint[j];if((yi>y)!==(yj>y)&&x<(xj-xi)*(y-yi)/(yj-yi)+xi)inside=!inside;}return inside;}
+  function buildingAt(scene,x,y) { return scene.buildings.find(b=>inFootprint(b,x,y)); }
   function blocked(scene,point,sun,withBuildings=true) {
     if (sun.elevation<=0) return {blocked:true,reason:'night',name:'해가 지평선 아래에 있습니다.'};
     const ground=elevation(scene,point.x,point.y)+0.5,tan=Math.tan(sun.elevation*RAD);
     // Intersect building footprints analytically, including structures narrower than a ray step.
     let nearest=null;
     if(withBuildings)for(const b of scene.buildings){
-      if(b.height<=0)continue;
+      if(!Number.isFinite(b.height)||b.height<=0)continue;
       let enter=0,leave=Infinity,hit=true;
-      for(const [origin,dir,min,max] of [[point.x,sun.east,b.x,b.x+b.width],[point.y,sun.north,b.y,b.y+b.depth]]){
+      if(b.footprint){enter=inFootprint(b,point.x,point.y)?0:Infinity;for(let i=0;i<b.footprint.length;i++){const a=b.footprint[i],c=b.footprint[(i+1)%b.footprint.length],vx=c[0]-a[0],vy=c[1]-a[1],den=sun.east*vy-sun.north*vx;if(Math.abs(den)<1e-9)continue;const ax=a[0]-point.x,ay=a[1]-point.y,t=(ax*vy-ay*vx)/den,u=(ax*sun.north-ay*sun.east)/den;if(t>=0&&u>=0&&u<=1)enter=Math.min(enter,t);}hit=Number.isFinite(enter);}
+      else for(const [origin,dir,min,max] of [[point.x,sun.east,b.x,b.x+b.width],[point.y,sun.north,b.y,b.y+b.depth]]){
         if(Math.abs(dir)<1e-10){if(origin<min||origin>max)hit=false;}
         else{const a=(min-origin)/dir,c=(max-origin)/dir;enter=Math.max(enter,Math.min(a,c));leave=Math.min(leave,Math.max(a,c));}
       }
@@ -85,12 +87,12 @@
     if(!Number.isInteger(s.cols)||!Number.isInteger(s.rows)||s.cols<2||s.rows<2||s.cols>81||s.rows>81||!Array.isArray(s.elevations)||s.elevations.length!==s.cols*s.rows||!s.elevations.every(v=>Number.isFinite(v)&&v>=-100&&v<9000))throw Error('표고 격자는 2~81행/열이며 모든 표고는 m 단위 숫자여야 합니다.');
     if(![s.width,s.depth].every(v=>Number.isFinite(v)&&v>=30&&v<=2000)||!Number.isFinite(s.lat)||!Number.isFinite(s.lon)||s.lat<36.30||s.lat>36.65||s.lon<126.6||s.lon>127.05)throw Error('현재 파일럿은 청양군 인근 좌표와 30~2,000m 장면만 지원합니다.');
     if(!s.provenance||!String(s.provenance.title||'').trim())throw Error('자료 출처 이름을 입력하세요.');
-    s.provenance.kind=s.provenance.kind==='synthetic'?'synthetic':'uploaded';
+    s.provenance.kind=['synthetic','osm'].includes(s.provenance.kind)?s.provenance.kind:'uploaded';
     for(const k of ['title','url','date','note'])s.provenance[k]=String(s.provenance[k]||'').slice(0,400);
     s.name=String(s.name||'업로드 시험 필지').slice(0,60);s.cultivar=CULTIVAR;s.region='충청남도 청양군 청양읍';
     if(!Array.isArray(s.buildings)||s.buildings.length>30)throw Error('건물은 최대 30개까지 입력할 수 있습니다.');
     const ids=new Set();
-    s.buildings.forEach((b,i)=>{if(![b.x,b.y,b.width,b.depth,b.height].every(Number.isFinite)||b.x<0||b.y<0||b.width<=0||b.depth<=0||b.x+b.width>s.width||b.y+b.depth>s.depth||b.height<0||b.height>100)throw Error('건물 좌표·크기·높이를 확인하세요.');b.id='B'+(i+1);b.name=String(b.name||b.id).slice(0,40);});
+    s.buildings.forEach((b,i)=>{if(![b.x,b.y,b.width,b.depth].every(Number.isFinite)||b.x<0||b.y<0||b.width<=0||b.depth<=0||b.x+b.width>s.width||b.y+b.depth>s.depth||(b.height!==null&&(!Number.isFinite(b.height)||b.height<0||b.height>100)))throw Error('건물 좌표·크기·높이를 확인하세요.');if(b.footprint&&(!Array.isArray(b.footprint)||b.footprint.length<3||b.footprint.length>200||b.footprint.some(p=>!Array.isArray(p)||p.length!==2||!p.every(Number.isFinite)||p[0]<0||p[0]>s.width||p[1]<0||p[1]>s.depth)))throw Error('건물 외곽선을 확인하세요.');b.id='B'+(i+1);b.name=String(b.name||b.id).slice(0,40);});
     if(!Array.isArray(s.plots)||!s.plots.length||s.plots.length>8)throw Error('시험구는 1~8개가 필요합니다.');
     s.plots.forEach((p,i)=>{if(![p.x,p.y].every(Number.isFinite)||p.x<0||p.y<0||p.x>s.width||p.y>s.depth)throw Error('시험구 좌표가 범위를 벗어났습니다.');p.id=String(p.id||i+1).slice(0,20);if(ids.has(p.id))throw Error('시험구 ID가 중복되었습니다.');ids.add(p.id);p.name=String(p.name||p.id).slice(0,40);if(buildingAt(s,p.x,p.y))throw Error('시험구가 건물 안에 있습니다. 건물 밖 재배 지점을 선택하세요.');});
     return s;
@@ -107,7 +109,7 @@
   function predict(model,input){const x=feature(input),contributions=x.map((v,j)=>model.beta[j+1]*(v-model.mean[j])/model.scale[j]);return {value:Math.max(0,model.beta[0]+contributions.reduce((a,b)=>a+b,0)),baseline:model.beta[0],contributions,outOfDomain:x.some((v,j)=>v<model.ranges[j][0]||v>model.ranges[j][1])};}
   function train(records){const rows=records.filter(validRecord).slice().sort((a,b)=>a.date.localeCompare(b.date));if(rows.length<12)return {ready:false,count:rows.length,needed:12};const split=Math.floor(rows.length*.75),test=rows.slice(split),validationModel=fit(rows.slice(0,split));const errors=test.map(r=>predict(validationModel,r).value-r.growth7d);return {ready:true,count:rows.length,trainCount:split,testCount:test.length,mae:errors.reduce((a,b)=>a+Math.abs(b),0)/errors.length,rmse:Math.sqrt(errors.reduce((a,b)=>a+b*b,0)/errors.length),model:fit(rows),validation:'날짜순 앞 75% 학습 / 뒤 25% 보류 검증'};}
   function recordsFromDaily(logs){const rows=Object.entries(logs||{}).map(([date,r])=>({date,...r})).filter(r=>validDate(r.date)&&r.cultivar===CULTIVAR&&r.region==='충청남도 청양군'&&r.area==='청양읍'&&r.pilotPlot&&typeof r.heightCm==='number'&&Number.isFinite(r.heightCm));const out=[];for(const a of rows){const date=new Date(a.date+'T12:00:00Z');date.setUTCDate(date.getUTCDate()+7);const b=rows.find(r=>r.date===date.toISOString().slice(0,10)&&r.pilotPlot===a.pilotPlot&&r.area===a.area&&r.region===a.region);if(!b||b.heightCm<a.heightCm)continue;const period=rows.filter(r=>r.date>=a.date&&r.date<b.date&&r.pilotPlot===a.pilotPlot&&r.area===a.area&&r.region===a.region);const enough=period.filter(r=>[r.min,r.max,r.sunHours,r.moisture].every(v=>typeof v==='number'&&Number.isFinite(v)));if(enough.length<4)continue;const avg=k=>enough.reduce((s,r)=>s+r[k],0)/enough.length;out.push({date:b.date,plotId:a.pilotPlot,cultivar:CULTIVAR,region:a.region,area:a.area,min:avg('min'),max:avg('max'),sunHours:avg('sunHours'),moisture:avg('moisture'),growth7d:b.heightCm-a.heightCm,source:'daily'});}return out;}
-  const api={VERSION,CULTIVAR,clamp,validDate,solarPosition,demoScene,elevation,buildingAt,blocked,terrainStats,analyze,validateScene,demoRecords,validRecord,feature,fit,predict,train,recordsFromDaily};
+  const api={VERSION,CULTIVAR,clamp,validDate,solarPosition,demoScene,elevation,inFootprint,buildingAt,blocked,terrainStats,analyze,validateScene,demoRecords,validRecord,feature,fit,predict,train,recordsFromDaily};
   if(typeof module==='object'&&module.exports)module.exports=api;
   root.RegrowPilotEngine=api;
 })(typeof window==='undefined'?globalThis:window);

@@ -5,7 +5,11 @@
 - Proposed location: Cheongyang-eup, Cheongyang-gun, Chungcheongnam-do, Korea.
 - Cultivar: 칼라탄 (Kalatan). Its inclusion in county seedling supply is documented by Cheongyang Agricultural Technology Center: https://www.cheongyang.go.kr/cop/bbs/BBSMSTR_000000000152/selectBoardArticle.do?nttId=208170
 - Proposed validation partner: Cheongyang Agricultural Technology Center. No partnership has been signed or represented as agreed. https://www.cheongyang.go.kr/cop/bbs/BBSMSTR_000000000152/selectBoardArticle.do?nttId=208171
-- The default 300 × 240m field, elevations, buildings, plot positions, and 36 machine-learning examples are **synthetic demonstrations**, not an actual farm, cadastral survey, climate measurement, or cultivar trial.
+- The default location is now the identifiable **Cheongyang Agricultural Technology Center surroundings**, address 구봉로 1026-84, with OpenStreetMap road/building tiles and a bounded browser-side query for actual building footprints (main building OSM way 1391301181 as fallback). Comparison markers are not claims about actual pepper cultivation, institute permission, or a partnered trial.
+- Missing building heights remain `null` and do not establish a clear-shadow classification. Users can explicitly apply an example 6m height or enter a known value; changes are labelled assumptions. No floor-to-height inference is silently applied. Default ground elevation is unavailable, represented as an explicitly disclosed flat-ground assumption; mountains and trees are not silently invented.
+- The optional 300 × 240m laboratory scene and 36 growth-model examples remain **synthetic demonstrations**, not a cadastral survey, climate measurement, or cultivar trial.
+- Hourly surrounding forecasts attempt the public KMA Cheongyang-eup RSS endpoint (zone 4479025000); if CORS, endpoint availability, or date coverage prevents reading values, no replacement temperatures are invented. An official KMA forecast iframe/link is provided separately. The widget's current forecast period may differ from the simulation date. KMA key-based village API and microclimate sensors remain unconnected.
+- External tiles, building geometry, and RSS endpoints are fetched by the visitor's browser; this development environment could not perform end-to-end external browser checks. Functional tests use explicit geometry/forecast fixtures, with failure states and source labels in the UI. OSM tiles show attribution; geometry is cached 24 hours and forecast responses 30 minutes; no repeated background polling is used.
 
 ## Working features
 
