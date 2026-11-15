@@ -1,158 +1,144 @@
-# Re:Grow Field Intelligence — Cheongyang pilot
+# Re:Grow pilot — record, locate, ask, revisit
 
-## Scope and evidence
+Updated 2026-11-16 (Korea). Public app: https://35eunlee.github.io/Regrow-pepper-guide/
 
-- Proposed location: Cheongyang-eup, Cheongyang-gun, Chungcheongnam-do, Korea.
-- Cultivar: 칼라탄 (Kalatan). Its inclusion in county seedling supply is documented by Cheongyang Agricultural Technology Center: https://www.cheongyang.go.kr/cop/bbs/BBSMSTR_000000000152/selectBoardArticle.do?nttId=208170
-- Proposed validation partner: Cheongyang Agricultural Technology Center. No partnership has been signed or represented as agreed. https://www.cheongyang.go.kr/cop/bbs/BBSMSTR_000000000152/selectBoardArticle.do?nttId=208171
-- The default location is now the identifiable **Cheongyang Agricultural Technology Center surroundings**, address 구봉로 1026-84, with OpenStreetMap road/building tiles and a bounded browser-side query for actual building footprints (main building OSM way 1391301181 as fallback). Comparison markers are not claims about actual pepper cultivation, institute permission, or a partnered trial.
-- Missing building heights remain `null` and do not establish a clear-shadow classification. Users can explicitly apply an example 6m height or enter a known value; changes are labelled assumptions. No floor-to-height inference is silently applied. Default ground elevation is unavailable, represented as an explicitly disclosed flat-ground assumption; mountains and trees are not silently invented.
-- The optional 300 × 240m laboratory scene and 36 growth-model examples remain **synthetic demonstrations**, not a cadastral survey, climate measurement, or cultivar trial.
-- Hourly surrounding forecasts attempt the public KMA Cheongyang-eup RSS endpoint (zone 4479025000); if CORS, endpoint availability, or date coverage prevents reading values, no replacement temperatures are invented. An official KMA forecast iframe/link is provided separately. The widget's current forecast period may differ from the simulation date. KMA key-based village API and microclimate sensors remain unconnected.
-- External tiles, building geometry, and RSS endpoints are fetched by the visitor's browser; this development environment could not perform end-to-end external browser checks. Functional tests use explicit geometry/forecast fixtures, with failure states and source labels in the UI. OSM tiles show attribution; geometry is cached 24 hours and forecast responses 30 minutes; no repeated background polling is used.
+## Farmer experience
 
-## Working features
+The four navigation items are Home, Weekly records, AI consultation, and Farmer
+stories. Weekly records contain **오늘 할 일 / 밭 지도** tabs. Pest and growth
+changes are entered alongside the day's status, notes, irrigation, soil condition
+and optional temperature/weather. The standalone growth model, validation menu,
+abstract field illustration and duplicate assistant route are removed from the
+active interface. The consultation header reuses the existing photographic pepper
+asset; it is an introduction image, not a photograph of the selected farm.
 
-The default page is the farmer-facing **AI in Action** workflow: pick a concern,
-find a paired shade/open observation window, enter a short actual observation,
-revisit previous notes, and prepare a consultation memo. Technical GIS and
-learning details remain available in separate views and disclosure panels.
+An explicit problem/status or symptom entry saves into the existing daily diary
+and prepares its date, note, symptom tags and farm key for point/polygon marking.
+Saving the mapped observation links its ID back to the same diary entry and opens
+an adaptive follow-up card. The same interview is available in AI consultation.
+Answers are retained, the next question changes, a revisit date can be saved, and
+a TXT consultation memo combines the observations, responses and reference.
+Legacy #pilot links open consultation; #map and #clinic links open weekly records.
+Existing diary and pest records remain on the device. Old optional quantitative
+measurements are retained in stored diary objects, without exposing the former
+model-training controls to farmers.
 
-- Observation windows require at least 30 continuous minutes of contrasting
-  geometric shadow states between the selected probes, within the displayed
-  analysis date. They are suggestions for measurement, not irrigation or disease
-  prescriptions. The hypothetical default scene is labelled at the point of use.
-- Quick entries require an explicitly selected plant status. They preserve
-  previously recorded numeric observations for the same farm/date, write into
-  the existing weekly diary, and never auto-fill synthetic temperatures or growth.
-- Optional browser speech recognition inserts editable text only after the user
-  starts it; it never saves or diagnoses automatically. Availability depends on
-  browser/device support. Leaving the view or submitting cancels active capture.
-- Seven-day measurement reminders are calculated from recorded heights. These
-  are in-app prompts, not background notifications.
-- The consultation TXT combines user-entered farm records, questions, and a
-  separately labelled GIS provenance section. It is downloaded locally and is
-  not sent to an institution. Benefits such as labour reduction and yield gains
-  have not been measured or claimed as achieved.
+## What the consultation actually does
 
-1. Date/location-specific solar elevation and azimuth, implemented independently from NOAA's public equations: https://gml.noaa.gov/grad/solcalc/solareqns.PDF
-2. Local elevation-grid interpolation and 3m ray marching against terrain and rectangular buildings. Probe height is 0.5m. Daily direct-sun opportunity is integrated at 15-minute intervals; the visual daily heatmap uses 30-minute intervals. Geographic limits and finite grid extent are explicit.
-3. Editable building-height counterfactuals, point selection, plot comparison, sun-path playback, and terrain contours interpolated from the active grid.
-4. Actual browser-local ridge regression with four standardized features: average daily temperature, temperature range, direct-sun duration, and a consistently calibrated soil-moisture index. Target: measured height increase over seven days. L2 penalty 1.2; chronological 75/25 holdout; MAE/RMSE reported. Final prediction fit uses all records. Features are explained relative to their training means, not as causal effects.
-5. Field mode requires at least 12 valid weekly records, the same pilot location and cultivar, observed sunlight input, and inputs inside the training ranges. This threshold only enables the model and does not establish field performance. The error reference is 2 × holdout RMSE, not a calibrated confidence interval. Cross-farm and cross-year validation remains pending.
-6. Grounded briefing uses current numerical results, intent matching, and cited references; a generative language model is not connected. The UI does not claim an LLM or computer-vision diagnosis.
-7. Local observation/CSV input, source-labelled GIS JSON import, and reproducible JSON analysis export. No measurements are uploaded or shared automatically.
+`field-reasoner.js` computes Korean word/character-bigram TF-IDF similarity over
+five small curated observation topics. Explicit follow-up answers adjust the
+order of checks. It chooses the next unanswered question from the relevant topic;
+unrecognized questions first ask which change the farmer observed. This is an
+offline retrieval and conditional interview, not an externally connected LLM,
+computer-vision diagnosis, validated disease classifier or calibrated probability.
+The disclosure is visible beneath each answer's evidence and sources.
 
-## Importing real GIS
+The current farm's irrigation entries from the preceding three days, same-day soil
+state, explicitly entered weather/temperature and selected GIS observation are
+shown as evidence. Existing answers are not asked again. An explicit new response
+overrides an earlier diary response. Missing data is not invented. A received
+observation file does not inherit the researcher's own irrigation history. Changed
+extent raises a follow-up priority, without claiming disease spread was inferred.
+Three responses lead to a concrete observation plan; further questions remain
+optional. Plans never prescribe a pesticide, diagnosis or universal water dose.
 
-Download the example JSON in the app. Required fields:
+Reference material, paraphrased as observation guidance:
 
-```json
-{
-  "version": 1,
-  "name": "Survey area",
-  "lat": 36.45,
-  "lon": 126.8,
-  "width": 300,
-  "depth": 240,
-  "cols": 2,
-  "rows": 2,
-  "elevations": [80, 82, 82, 84],
-  "provenance": {"kind": "uploaded", "title": "Source + survey date", "url": "", "date": "2027-05-01"},
-  "buildings": [{"id": "B1", "name": "Surveyed building", "x": 100, "y": 80, "width": 20, "depth": 20, "height": 6}],
-  "plots": [{"id": "A", "name": "Plot A", "x": 80, "y": 60}]
-}
-```
+- RDA Nongsaro, pepper water requirements:
+  https://www.nongsaro.go.kr/portal/oneclick/htmlfile/A0108010101/A010801010103.html
+- RDA Nongsaro, light conditions:
+  https://www.nongsaro.go.kr/portal/oneclick/htmlfile/A0108010101/A010801010102.html
+- RDA/NIHHS aphid observation video (2019):
+  https://www.nongsaro.go.kr/portal/ps/psb/psby/vodPlay.ps?mvpClipNo=6&mvpNo=741
+- RDA/NIHHS fruit-spot observation video (2019):
+  https://www.nongsaro.go.kr/portal/ps/psb/psby/vodPlay.ps?mvpClipNo=2&mvpNo=741
 
-Local x points east and y north; the origin is the southwest corner. Distances and elevation are metres. Elevations are row-major, west to east, from south to north. Every grid cell must be present. Grid dimensions: 2–81 each; scene extent: 30–2,000m each; max 30 buildings and eight plot probes. Boundary terrain is not extrapolated. Imported material is labelled **user supplied / not reviewed**, never automatically verified.
+## Home information and recommendations
 
-Use a ground DEM and separately joined building footprints/heights. Do not add building heights onto a DSM that already contains roofs. Public source candidates:
+`farm-news.js` ranks verified official reading links using current target periods,
+recent same-farm observation topics, and time-decayed reading topics from this
+browser. Reasons are shown with each card. Dated bulletins show publication and
+target dates separately; expired items are marked historical and lose priority.
+Undated reference material and 2019 videos are not presented as current outbreaks.
+The source list was checked on 2026-11-16; it is a dated editorial snapshot, not a
+continuously refreshed news feed. Personal reading history can be cleared.
+No aggregate visitor analytics or fabricated popularity counts are used.
 
-- NGII DEM: https://www.data.go.kr/data/15059920/fileData.do (IMG download and preprocessing needed).
-- Building registry height attributes: https://www.data.go.kr/data/15044720/fileData.do (footprint join required).
-- KMA village forecast: https://www.data.go.kr/data/15084084/openapi.do (key and safe server integration required; not connected by this static pilot).
+Verified period references:
 
-No public GIS dataset has been silently substituted by fabricated national data. Real source acquisition, georeferencing, building joins, and a validation survey remain part of the proposed field project.
+- NCPMS monthly bulletin 14, target 2026-11-01–30, published 2026-11-02:
+  https://ncpms.rda.go.kr/npms/NewIndcUserListR.np
+- NCPMS weekly farming information 46, target 2026-11-16–22, published 2026-11-11:
+  https://ncpms.rda.go.kr/npms/WeekFarmInfoListR.np
+- Current warnings: https://www.weather.go.kr/w/special-report/list.do
+- Ten-day outlook: https://www.weather.go.kr/w/forecast/overall/mid-term.do
 
-## Observations and validation
+For a farm explicitly set to Cheongyang-eup, the browser attempts the existing KMA
+RSS zone 4479025000. A weather card is shown only with a fresh publication and
+future valid rows within 72 hours. Its range is explicitly the minimum/maximum
+among provided forecast times, not an observed daily minimum/maximum or plot
+microclimate. Other regions, stale responses, missing dates or failed connections
+show no invented values; official latest-source links remain available. The
+prototype does not invent a tomato outbreak or a next-week heatwave.
 
-CSV columns:
+## Practical GIS and collection
 
-```csv
-date,plotId,cultivar,region,area,min,max,sunHours,moisture,growth7d,source
-```
+The named starting landmark is Cheongyang Agricultural Technology Center,
+충남 청양군 청양읍 구봉로 1026-84, approximately 36.42328,126.7794.
+It does not indicate an actual cultivated parcel or institutional partnership.
+The technical bounding rectangle is latitude 36.30–36.65, longitude 126.60–127.05;
+it is not a surveyed administrative boundary.
 
-`cultivar` must be `칼라탄`, `region` must be `충청남도 청양군`, and `area` must be `청양읍`. Date is the period-end date. `min`, `max`, `sunHours`, and `moisture` are seven-day averages; `growth7d` is the measured seven-day height increase in cm. Synthetic rows cannot be imported as field observations. Each date/plot pair is unique. Use consistently calibrated sensors; values are not interchangeable with volumetric moisture percentages.
+The practical map supports one-pointer drag, two-pointer anchored pinch, wheel
+zoom, optional GPS, accessible +/- buttons and keyboard navigation. Panning does
+not add a record. Point/polygon mode creates geometry only on an intentional tap;
+polygon area is an approximate local projection, not a cadastral survey. No
+unverified 3D building height or irradiance is shown in this workflow.
 
-The diary bridge requires height observations exactly seven days apart in the same plot/location/cultivar and at least four valid intermediate daily environment records. This is a prototype aggregation rule, not an experimentally established sampling protocol.
+Visible basemaps are Esri World Imagery (attribution: Esri, Vantor, Earthstar
+Geographics, GIS User Community) and OpenStreetMap (ODbL contributors). Actual
+roofs/roads are visible when those external tiles load. Imagery age and current
+building appearance are not guaranteed. Tiles are display-only, not included in
+exports or presentation assets; there is no bulk/offline tile export.
 
-The proposed 12-week study uses matched shade/open plots, sensors, and weekly phenotyping. UI targets (sun-duration MAE ≤30min/day, shade F1 ≥0.85, growth MAE ≤1cm/week) are **proposed acceptance targets**, not achieved results. Institutional review, consenting farms, sample-size design, ground truth, and a full-season external validation precede expansion.
+Observations and up to three resized JPEGs are stored in IndexedDB
+`regrow-field-gis-v1`. Photos are resized to at most 1,200px and re-encoded, removing
+metadata. No photo is auto-uploaded or automatically diagnosed. Daily links use
+`diaryDate` and `fieldIds`; mapped follow-up answers are also retained with the
+observation and included in deliberate GeoJSON exports. Local consultation state
+is `rg-field-interviews-v2`; view preferences use `rg-farmer-workflow-v2`; personal
+reading events use `rg-news-views-v1`. Existing `rg-daily-logs` / `rg-symptoms` data
+remain compatible. Removing browser site data removes these local records.
 
-## Limits
+Sharing remains deliberate: GeoJSON rounds locations to 0.001 degrees (roughly
+100m) and omits polygon boundaries by default. Exact geometry and photos require
+explicit choices; photographs are packaged with GeoJSON as ZIP. Coarsened
+coordinates are not promoted to exact on re-export and are excluded from 30m
+clustering. Received GeoJSON can be combined by a research team; IDs deduplicate,
+existing records are kept, follow-up responses remain unreviewed, and photos are
+inspected separately after ZIP extraction. Limit: 1,000 observations per device.
 
-Direct-sun opportunity is not measured irradiance, illuminance, PAR, DLI, canopy photosynthesis, irrigation need, or yield. Clouds, tree transmissivity, greenhouse films, reflected/diffuse light, and obstacles outside the uploaded scene are absent. Official crop light context: https://www.nongsaro.go.kr/portal/oneclick/htmlfile/A0108010101/A010801010102.html
+A selected report can optionally be drafted as a public GitHub issue after a
+disclosure checkbox. The farmer must log in, review and submit it. Coarse location,
+shortened note/action and no automatic photos are used. Public reports are fetched
+only on request, at most the latest 100 issues, and labelled unreviewed. There is
+no automatic shared research server or global readership database.
 
-Run computational and interface checks with `node --test dist/checks/*.test.cjs` from the repository root (or `node --test checks/*.test.cjs` from a published-root checkout).
+## Verification and technical archive
 
+Run `node --test dist/checks/*.test.cjs` in this source checkout (or
+`node --test checks/*.test.cjs` in the published-root layout). Checks cover diary
+preservation, actual script/route wiring, mapped problem links, answer-dependent
+follow-up and non-repetition, topic personalization/expiry, forecast gating,
+pan/pinch versus record taps, HTML escaping, observation validation, source-labelled
+imports, location precision, ZIP/CRC, and explicit IndexedDB submit/status updates.
+Static markup for home, weekly records, mapped forms and consultation was checked
+for balanced tags and duplicate IDs. A browser runner is unavailable in this
+environment: external tiles, device photo capture, real GPS, CORS and visual layout
+on a physical phone still need an end-to-end device check.
 
-## Field GIS and research collection (November 2026)
-
-The practical map is now **우리 밭 현장 지도** under **AI 도우미 → 밭 지도**.
-It starts at the named Cheongyang Agricultural Technology Center neighborhood;
-this is a navigation landmark, not a claim that the center's grounds are a
-pepper trial or that a partnership exists. The street map remains available.
-
-- Visible satellite/aerial tiles use the public Esri World Imagery MapServer:
-  https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer
-  with attribution “Source: Esri, Vantor, Earthstar Geographics, and the GIS User
-  Community”. Tile service rows/columns are used only for on-screen display.
-  No bulk/offline tile downloading or tile export is implemented. Imagery age,
-  coverage and present-day roof appearance are not guaranteed. OSM source
-  building polygons are outlined over imagery, not replaced by generic 3D blocks.
-- Map arrows, zoom and optional user-initiated GPS can select another location
-  inside the existing pilot coordinate rectangle. This rectangle is a technical
-  limit, not a surveyed administrative boundary. After movement, center-specific
-  OSM geometry is cleared rather than incorrectly reused elsewhere. The aerial
-  roofs remain visible; building-height simulation is unavailable without a
-  matching local dataset. Source requests already in flight cannot replace a
-  user-selected location.
-- Farmers can place a point or draw a polygon; capture category, observation
-  date, visible extent, status, note, action, cultivar and revisit date; and add
-  up to three photos. Approximate polygon area uses a local metric projection
-  and is not cadastral/survey area. Photos are resized to at most 1,200px JPEG
-  through canvas (metadata is stripped) and stored with observations in local
-  IndexedDB. They are not auto-uploaded or automatically diagnosed. Maximum
-  1,000 records/device; removal of browser site data removes these local records.
-- Follow-up order is a transparent rule: due revisit dates first, then visible
-  extent and observation date. Recent unresolved exact-location observations
-  of the same category are grouped as connected components using 30m proximity.
-  These are user-record patterns, not incidence rates, outbreak forecasts or
-  disease diagnoses. Coarsened shared locations are excluded from 30m grouping.
-- GeoJSON export rounds coordinates to 0.001 degree (roughly 100m) by default and
-  omits polygon boundaries. Exact coordinates/boundaries require explicit choice.
-  Imported coarse coordinates cannot be promoted to exact by re-export. Optional
-  JPEG photos are packed with GeoJSON in a ZIP; imagery tiles are never included.
-  Photo content and note text can still disclose location; users choose what to
-  share. There is no automatic central research database.
-- The research team can import Re:Grow GeoJSON from multiple participants;
-  IDs are deduplicated, existing records are kept, and imported observations
-  remain unreviewed. ZIP packages must be unpacked and their GeoJSON selected;
-  photos can be inspected separately and are not re-imported automatically.
-- A separate optional **public research report** drafts a structured GitHub
-  issue in this repository only after a disclosure checkbox and record selection.
-  The farmer must log into GitHub, review the public text and submit it there.
-  Coordinates are coarse and photos are not silently sent. The app can fetch up
-  to the latest 100 repository issues on explicit request and recognizes only
-  the expected JSON schema. Loaded reports are labelled user-supplied/unreviewed;
-  they are never promoted to official public-agency disease statistics.
-- The old sun/shadow controls now live in a collapsed optional section. They
-  require known or explicitly assumed heights. Building outlines, sun geometry
-  and current official temperature forecasts are not evidence of measured
-  microclimate, a calibrated irradiance layer or achieved crop improvements.
-
-Tests cover observation validation, exact/coarse export and re-import, duplicate
-identity handling, spatial grouping exclusions, revisit ordering, public schema
-parsing, ZIP structure/CRC, actual submit-and-status persistence through an
-IndexedDB test adapter, and existing application script/diary integration.
-They do not replace an end-to-end phone/browser test of external imagery,
-Overpass, KMA, GPS or user photo capture on the deployment domain.
+The earlier NOAA solar, synthetic ridge-regression experiment and sample scenes
+remain as source/test history, not active farmer-facing features. Their past
+validation targets were never achieved field measurements. Presentation PNG/SVG
+assets are source-based UI mockups with illustrative data labelled as examples,
+not browser screenshots or claimed model performance.

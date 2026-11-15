@@ -141,17 +141,15 @@ test('UI renders and draws, responds to time/plot controls, switches modes, and 
   click({pfTab:'trust'});html=P.page({logs:{}});assert(html.includes('협력 제안 대상 · 협의 전'));assert(html.includes('fieldData')===false);
 });
 
-test('existing site loads the new route in its actual script order and keeps diary controls',()=>{
+test('actual page script order loads the unified routes and preserves existing observations',()=>{
   const elements=new Map(),events={};const element=()=>({value:'',style:{},dataset:{},innerHTML:'',textContent:'',classList:{toggle:()=>{},add:()=>{},remove:()=>{}},setAttribute:()=>{},addEventListener:()=>{},showModal:()=>{},close:()=>{}});
   const get=s=>{if(!elements.has(s))elements.set(s,element());return elements.get(s);};
-  const context={console,localStorage:{getItem:()=>null,setItem:()=>{}},document:{querySelector:get,querySelectorAll:()=>[],getElementById:()=>null,body:{classList:{toggle:()=>{}}},documentElement:{style:{}},addEventListener:(k,f)=>{const prev=events[k];events[k]=(...args)=>{prev?.(...args);return f(...args);};}},location:{hash:'#pilot'},addEventListener:()=>{},scrollTo:()=>{},cancelAnimationFrame:()=>{},requestAnimationFrame:()=>1,setTimeout:()=>0,clearTimeout:()=>{},Date,Math,JSON,Blob,URL,navigator:{}};context.window=context;context.globalThis=context;vm.createContext(context);
-  for(const file of ['regions.js','pilot-engine.js','pilot-actions.js','pilot-place.js','field-gis.js','pilot-map-view.js','pilot-ui.js','app.js'])vm.runInContext(fs.readFileSync(path.join(__dirname,'..',file),'utf8'),context,{filename:file});
-  assert(get('#app').innerHTML.includes('pilotRoot'));assert(get('#app').innerHTML.includes('pfQuickForm'));
-  events.click({target:{closest:s=>s==='#pilotRoot'?{}:s==='button'?{dataset:{pfTab:'solar'},hasAttribute:()=>false}:null}});
-  const named=context.RegrowPilot.page({logs:{}});assert(named.includes('청양군농업기술센터 일대'));assert(named.includes('구봉로 1026-84'));assert(named.includes('기상청 청양읍 동네예보'));assert(named.includes('높이 확인 후'));assert(named.includes('우리 밭 현장 지도'));assert(named.includes('구역 그리기'));assert(named.includes('fgImport'));assert(named.includes('공개 연구 제보'));assert(!named.includes('3D 모델을 재현했어요'));
-  const home=vm.runInContext('home()',context);assert.equal((home.match(/class="card shortcut"/g)||[]).length,6);assert(home.includes('id="homeFeatureGrid"'));
-  const calendar=vm.runInContext('weekCalendar()',context);
-  for(const id of ['dayPilotPlot','dayHeight','daySunHours','dayMoisture'])assert(calendar.includes(id));
+  const context={console,localStorage:{getItem:()=>null,setItem:()=>{}},document:{querySelector:get,querySelectorAll:()=>[],getElementById:()=>null,body:{classList:{toggle:()=>{}}},documentElement:{style:{}},addEventListener:(k,f)=>{const prev=events[k];events[k]=(...args)=>{prev?.(...args);return f(...args);};}},location:{hash:'#home'},addEventListener:()=>{},scrollTo:()=>{},cancelAnimationFrame:()=>{},requestAnimationFrame:()=>1,setTimeout:()=>0,clearTimeout:()=>{},Date,Math,JSON,Blob,URL,navigator:{}};context.window=context;context.globalThis=context;vm.createContext(context);
+  const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8'),files=[...html.matchAll(/<script src="([^"?]+)(?:\?[^\"]*)?"><\/script>/g)].map(m=>m[1]);
+  for(const file of files)vm.runInContext(fs.readFileSync(path.join(__dirname,'..',file),'utf8'),context,{filename:file});
+  const home=get('#app').innerHTML;assert(home.includes('rwRoot'));assert(home.includes('요즘 농사 소식'));assert(home.includes('id="homeFeatureGrid"')||home.includes("id='homeFeatureGrid'"));assert.equal((html.match(/data-tab=/g)||[]).length,4);
+  vm.runInContext("location.hash='#calendar';render()",context);const calendar=get('#app').innerHTML;assert(calendar.includes('rwDayForm'));assert(calendar.includes('오늘 할 일'));assert(calendar.includes('밭 지도'));assert(!calendar.includes('생육 AI용 관찰 추가'));
+  vm.runInContext("location.hash='#pilot';render()",context);assert(get('#app').innerHTML.includes('rwQuestionForm'));assert(!get('#app').innerHTML.includes('pfScenarioForm'));
   vm.runInContext("farm={region:'충청남도 청양군',area:'청양읍',stage:'수확 중'};dailyLogs[isoDate(new Date())]={region:farm.region,area:farm.area,min:12,max:24,heightCm:34,note:'이전 메모'};",context);
   assert.equal(vm.runInContext("savePilotQuickLog({date:isoDate(new Date()),status:'주의',note:'오늘 직접 본 메모'})",context),true);
   assert.equal(vm.runInContext('dailyLogs[isoDate(new Date())].min',context),12);

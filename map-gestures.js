@@ -1,0 +1,16 @@
+/* Pointer events: one-finger pan, two-finger anchored pinch, wheel and keyboard. */
+(function(root){
+'use strict';
+const clamp=(v,a,b)=>Math.min(b,Math.max(a,v)),ml=lat=>111320*Math.cos(lat*Math.PI/180);
+function pan(view,dx,dy,w,h){return {...view,lat:clamp(view.lat+dy/h*view.depth/111320,36.30,36.65),lon:clamp(view.lon-dx/w*view.width/ml(view.lat),126.6,127.05)};}
+function zoom(view,factor,x,y,w,h){const width=clamp(view.width/factor,70,1800),depth=width*view.depth/view.width,anchor={lat:view.lat+(.5-y/h)*view.depth/111320,lon:view.lon+(x/w-.5)*view.width/ml(view.lat)},lat=clamp(anchor.lat-(.5-y/h)*depth/111320,36.30,36.65),lon=clamp(anchor.lon-(x/w-.5)*width/ml(lat),126.6,127.05);return {...view,lat,lon,width,depth};}
+function bind(canvas,{getView,setView,onTap,onEnd}){if(canvas._regrowGesture)return;canvas._regrowGesture=true;const points=new Map();let origin=null,moved=false,pinching=false;
+ const position=e=>{const b=canvas.getBoundingClientRect();return {x:e.clientX-b.left,y:e.clientY-b.top};},size=()=>({w:canvas.clientWidth||640,h:canvas.clientHeight||480}),end=e=>{if(!points.has(e.pointerId))return;const p=position(e),tap=!moved&&!pinching&&points.size===1;points.delete(e.pointerId);try{canvas.releasePointerCapture?.(e.pointerId);}catch{}if(tap)onTap?.(p.x,p.y);if(!points.size){origin=null;pinching=false;onEnd?.();}};
+ canvas.addEventListener('pointerdown',e=>{if(e.button!==undefined&&e.button!==0)return;const p=position(e);points.set(e.pointerId,p);if(points.size===1){origin=p;moved=false;pinching=false;}else pinching=true;try{canvas.setPointerCapture?.(e.pointerId);}catch{}e.preventDefault();});
+ canvas.addEventListener('pointermove',e=>{const old=points.get(e.pointerId);if(!old)return;const p=position(e),{w,h}=size(),v=getView();if(points.size===1){if(Math.hypot(p.x-origin.x,p.y-origin.y)>7)moved=true;if(moved)setView(pan(v,p.x-old.x,p.y-old.y,w,h),true);}else{const other=[...points.entries()].find(([id])=>id!==e.pointerId)[1],before=Math.hypot(old.x-other.x,old.y-other.y),after=Math.hypot(p.x-other.x,p.y-other.y);if(before>5&&after>5){const bx=(old.x+other.x)/2,by=(old.y+other.y)/2,ax=(p.x+other.x)/2,ay=(p.y+other.y)/2;setView(pan(zoom(v,after/before,bx,by,w,h),ax-bx,ay-by,w,h),true);}moved=true;}points.set(e.pointerId,p);e.preventDefault();});
+ canvas.addEventListener('pointerup',end);canvas.addEventListener('pointercancel',e=>{moved=true;end(e);});canvas.addEventListener('lostpointercapture',e=>{if(points.has(e.pointerId)){moved=true;end(e);}});
+ canvas.addEventListener('wheel',e=>{e.preventDefault();const p=position(e),{w,h}=size();setView(zoom(getView(),Math.exp(-clamp(e.deltaY,-100,100)*.004),p.x,p.y,w,h),false);onEnd?.();},{passive:false});
+ canvas.addEventListener('keydown',e=>{const{w,h}=size(),v=getView();if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)){e.preventDefault();setView(pan(v,e.key==='ArrowLeft'?w*.2:e.key==='ArrowRight'?-w*.2:0,e.key==='ArrowUp'?h*.2:e.key==='ArrowDown'?-h*.2:0,w,h),false);onEnd?.();}if(['+','=','-'].includes(e.key)){e.preventDefault();setView(zoom(v,e.key==='-'?1/1.4:1.4,w/2,h/2,w,h),false);onEnd?.();}});
+}
+const api={pan,zoom,bind};if(typeof module==='object'&&module.exports)module.exports=api;root.RegrowMapGestures=api;
+})(typeof window==='undefined'?globalThis:window);
