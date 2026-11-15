@@ -1,0 +1,36 @@
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
+const G=require('../field-gis.js'),E=require('../pilot-engine.js');global.RegrowPilotEngine=E;const P=require('../pilot-place.js');
+const row=(id='r1',extra={})=>({id,date:'2026-11-15',location:{lat:36.42328,lon:126.7794},type:'물 고임',status:'관찰 중',severity:1,note:'입구에 물이 고여 있어요.',action:'배수로를 확인했어요.',revisit:'2026-11-16',cultivar:'칼라탄',photos:[],source:'local',...extra});
+test('field records reject malformed dates, locations, unsafe identifiers and polygons',()=>{
+ assert.equal(G.validate(row()).id,'r1');for(const bad of [{date:'2026-02-30'},{location:{lat:37.5,lon:126.9}},{location:{lat:'36.4',lon:126.8}},{id:'../photo'},{id:''},{severity:5},{cultivar:{}},{polygon:[{lat:36.4,lon:126.8}]}])assert.throws(()=>G.validate(row('x',bad)));
+});
+test('spatial followups group nearby comparable exact records and prioritize due visits',()=>{
+ const a=row('a'),b=row('b',{location:{lat:a.location.lat+.0001,lon:a.location.lon}}),c=row('c',{type:'병해충'}),old=row('old',{date:'2026-09-01'}),done=row('done',{status:'해결'}),coarse=row('coarse',{locationPrecision:'rounded-about-100m'});
+ const groups=G.groups([a,b,c,old,done,coarse],'2026-11-15');assert.equal(groups.length,1);assert.equal(groups[0].count,2);assert(G.distance(a.location,b.location)>10&&G.distance(a.location,b.location)<12);
+ assert.equal(G.priorities([row('later',{severity:3}),row('due',{revisit:'2026-11-15'}),done],'2026-11-15')[0].id,'due');
+});
+test('GeoJSON export minimizes shared location by default; explicit precision retains polygons; imports preserve review state',()=>{
+ const s=P.placeholder(),polygon=[[100,100],[120,100],[120,120],[100,120]].map(([x,y])=>P.geographic(s,x,y)),r=row('area',{polygon,photos:[{blob:new Blob(['photo'])}]});
+ assert(Math.abs(G.area(polygon)-400)<.2);
+ const coarse=G.geojson([r]);assert.equal(coarse.features[0].geometry.type,'Point');assert.deepEqual(coarse.features[0].geometry.coordinates,[126.779,36.423]);assert.equal(coarse.features[0].properties.areaM2,null);assert.deepEqual(coarse.features[0].properties.photoFiles,[]);assert(!JSON.stringify(coarse).includes('36.42328'));
+ const exact=G.geojson([r],{precise:true,includePhotos:true});assert.equal(exact.features[0].geometry.type,'Polygon');assert.equal(exact.features[0].geometry.coordinates[0].length,5);assert.equal(exact.features[0].properties.photoFiles[0],'photos/area-0.jpg');
+ assert.equal(G.fromGeoJSON(exact)[0].source,'imported-unreviewed');assert.equal(G.fromGeoJSON(coarse)[0].locationPrecision,'rounded-about-100m');assert.equal(G.groups(G.fromGeoJSON(coarse),'2026-11-15').length,0);
+ const reexport=G.geojson(G.fromGeoJSON(coarse),{precise:true});assert.equal(reexport.features[0].properties.locationPrecision,'rounded-about-100m');assert.equal(G.fromGeoJSON(reexport)[0].locationPrecision,'rounded-about-100m');
+ const malformed=structuredClone(exact);malformed.features[0].geometry.coordinates[0].pop();assert.throws(()=>G.fromGeoJSON(malformed));assert.throws(()=>G.fromGeoJSON({type:'FeatureCollection',features:[]}));
+});
+test('public report drafts require recognized schema and remain coarse and unreviewed',()=>{
+ const url=new URL(G.issueURL(row()));assert.equal(url.hostname,'github.com');assert.equal(url.pathname,'/35eunlee/Regrow-pepper-guide/issues/new');const body=url.searchParams.get('body');assert(!body.includes('36.42328'));assert(!body.includes('blob:'));const pub=G.parsePublic({number:17,title:url.searchParams.get('title'),body});assert.equal(pub.id,'public-17');assert.equal(pub.source,'public-unreviewed');assert.equal(pub.locationPrecision,'rounded-about-100m');assert.deepEqual(pub.photos,[]);assert.equal(G.parsePublic({number:17,title:'unrelated',body}),null);assert.equal(G.parsePublic({number:'javascript:',title:'[현장 제보]',body}),null);assert.equal(G.parsePublic({number:17,title:'[현장 제보]',body:body.replace('regrow-public-observation-v1','other')}),null);
+});
+test('ZIP packages are structurally valid and CRC identifies the original bytes',async()=>{
+ const z=await G.zip([{name:'observations.geojson',data:'{"type":"FeatureCollection"}'},{name:'photos/r1-0.jpg',data:new Blob([new Uint8Array([255,216,255,217])])}]);const b=Buffer.from(await z.arrayBuffer());assert.equal(b.readUInt32LE(0),0x04034b50);assert.equal(b.readUInt32LE(b.length-22),0x06054b50);assert.equal(b.readUInt16LE(b.length-12),2);const offset=b.readUInt32LE(b.length-6);assert.equal(b.readUInt32LE(offset),0x02014b50);const nameLen=b.readUInt16LE(26),dataLen=b.readUInt32LE(18);assert.equal(G.crc32(b.subarray(30+nameLen,30+nameLen+dataLen)),b.readUInt32LE(14));
+});
+test('field UI stores a selected map point only after explicit submit and status updates persist',async()=>{
+ const saved=new Map(),handlers={},fields={},root={},notes=[];let redraws=0;
+ const idb={open(){const req={};queueMicrotask(()=>{req.result={createObjectStore(){},transaction(_name,mode){const tx={objectStore(){return {getAll:()=>op('get'),put:r=>op('put',r),delete:id=>op('del',id)};}};function op(kind,r){const q={};queueMicrotask(()=>{if(kind==='put')saved.set(r.id,r);if(kind==='del')saved.delete(r);q.result=kind==='get'?[...saved.values()]:r?.id;q.onsuccess?.();queueMicrotask(()=>tx.oncomplete?.());});return q;}return tx;}};req.onupgradeneeded?.();req.onsuccess?.();});return req;}};
+ const document={addEventListener:(k,f)=>(handlers[k]??=[]).push(f),getElementById:id=>fields[id]||null};const context={console,Date,Math,JSON,Blob,URL,TextEncoder,crypto:require('node:crypto').webcrypto,queueMicrotask,setTimeout:()=>0,indexedDB:idb,document,RegrowPilotPlace:P};context.window=context;vm.createContext(context);vm.runInContext(fs.readFileSync(path.join(__dirname,'../field-gis.js'),'utf8'),context);const U=context.RegrowFieldGIS;U.init({redraw:()=>redraws++,notify:t=>notes.push(t)});await new Promise(setImmediate);
+ const click=async dataset=>{const b={dataset,hasAttribute:name=>name==='data-fg-finish'&&dataset.finish===true};for(const h of handlers.click)await h({target:{closest:s=>s==='#pilotRoot'?root:b}});};
+ await click({fgMode:'point'});U.clickMap(P.placeholder(),100,90);assert.equal(saved.size,0);assert(U.list().includes('이곳에서 무엇을 봤나요?'));
+ const now=new Date(),date=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');Object.entries({fgType:'물 고임',fgDate:date,fgStatus:'관찰 중',fgSeverity:'2',fgRevisit:'',fgNote:'서쪽 입구에 물이 고여요.',fgAction:'배수로를 살폈어요.',fgCultivar:'칼라탄'}).forEach(([k,v])=>fields[k]={value:v});fields.fgPhotos={files:[]};
+ const button={disabled:false};for(const h of handlers.submit)await h({preventDefault(){},target:{id:'fgRecordForm',querySelector:()=>button}});assert.equal(saved.size,1);assert.equal(U.rows()[0].note,fields.fgNote.value);assert.equal(U.rows()[0].photos.length,0);const id=U.rows()[0].id;
+ await click({fgUpdate:id,fgValue:'해결'});assert.equal(saved.get(id).status,'해결');assert(U.list().includes('해결'));assert(redraws>=3);assert(notes.some(t=>t.includes('저장')));
+});

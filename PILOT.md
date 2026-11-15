@@ -92,4 +92,67 @@ The proposed 12-week study uses matched shade/open plots, sensors, and weekly ph
 
 Direct-sun opportunity is not measured irradiance, illuminance, PAR, DLI, canopy photosynthesis, irrigation need, or yield. Clouds, tree transmissivity, greenhouse films, reflected/diffuse light, and obstacles outside the uploaded scene are absent. Official crop light context: https://www.nongsaro.go.kr/portal/oneclick/htmlfile/A0108010101/A010801010102.html
 
-Run computational and interface checks with `node --test checks/pilot.test.cjs` from the repository root.
+Run computational and interface checks with `node --test dist/checks/*.test.cjs` from the repository root (or `node --test checks/*.test.cjs` from a published-root checkout).
+
+
+## Field GIS and research collection (November 2026)
+
+The practical map is now **우리 밭 현장 지도** under **AI 도우미 → 밭 지도**.
+It starts at the named Cheongyang Agricultural Technology Center neighborhood;
+this is a navigation landmark, not a claim that the center's grounds are a
+pepper trial or that a partnership exists. The street map remains available.
+
+- Visible satellite/aerial tiles use the public Esri World Imagery MapServer:
+  https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer
+  with attribution “Source: Esri, Vantor, Earthstar Geographics, and the GIS User
+  Community”. Tile service rows/columns are used only for on-screen display.
+  No bulk/offline tile downloading or tile export is implemented. Imagery age,
+  coverage and present-day roof appearance are not guaranteed. OSM source
+  building polygons are outlined over imagery, not replaced by generic 3D blocks.
+- Map arrows, zoom and optional user-initiated GPS can select another location
+  inside the existing pilot coordinate rectangle. This rectangle is a technical
+  limit, not a surveyed administrative boundary. After movement, center-specific
+  OSM geometry is cleared rather than incorrectly reused elsewhere. The aerial
+  roofs remain visible; building-height simulation is unavailable without a
+  matching local dataset. Source requests already in flight cannot replace a
+  user-selected location.
+- Farmers can place a point or draw a polygon; capture category, observation
+  date, visible extent, status, note, action, cultivar and revisit date; and add
+  up to three photos. Approximate polygon area uses a local metric projection
+  and is not cadastral/survey area. Photos are resized to at most 1,200px JPEG
+  through canvas (metadata is stripped) and stored with observations in local
+  IndexedDB. They are not auto-uploaded or automatically diagnosed. Maximum
+  1,000 records/device; removal of browser site data removes these local records.
+- Follow-up order is a transparent rule: due revisit dates first, then visible
+  extent and observation date. Recent unresolved exact-location observations
+  of the same category are grouped as connected components using 30m proximity.
+  These are user-record patterns, not incidence rates, outbreak forecasts or
+  disease diagnoses. Coarsened shared locations are excluded from 30m grouping.
+- GeoJSON export rounds coordinates to 0.001 degree (roughly 100m) by default and
+  omits polygon boundaries. Exact coordinates/boundaries require explicit choice.
+  Imported coarse coordinates cannot be promoted to exact by re-export. Optional
+  JPEG photos are packed with GeoJSON in a ZIP; imagery tiles are never included.
+  Photo content and note text can still disclose location; users choose what to
+  share. There is no automatic central research database.
+- The research team can import Re:Grow GeoJSON from multiple participants;
+  IDs are deduplicated, existing records are kept, and imported observations
+  remain unreviewed. ZIP packages must be unpacked and their GeoJSON selected;
+  photos can be inspected separately and are not re-imported automatically.
+- A separate optional **public research report** drafts a structured GitHub
+  issue in this repository only after a disclosure checkbox and record selection.
+  The farmer must log into GitHub, review the public text and submit it there.
+  Coordinates are coarse and photos are not silently sent. The app can fetch up
+  to the latest 100 repository issues on explicit request and recognizes only
+  the expected JSON schema. Loaded reports are labelled user-supplied/unreviewed;
+  they are never promoted to official public-agency disease statistics.
+- The old sun/shadow controls now live in a collapsed optional section. They
+  require known or explicitly assumed heights. Building outlines, sun geometry
+  and current official temperature forecasts are not evidence of measured
+  microclimate, a calibrated irradiance layer or achieved crop improvements.
+
+Tests cover observation validation, exact/coarse export and re-import, duplicate
+identity handling, spatial grouping exclusions, revisit ordering, public schema
+parsing, ZIP structure/CRC, actual submit-and-status persistence through an
+IndexedDB test adapter, and existing application script/diary integration.
+They do not replace an end-to-end phone/browser test of external imagery,
+Overpass, KMA, GPS or user photo capture on the deployment domain.
