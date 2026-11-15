@@ -142,3 +142,35 @@ remain as source/test history, not active farmer-facing features. Their past
 validation targets were never achieved field measurements. Presentation PNG/SVG
 assets are source-based UI mockups with illustrative data labelled as examples,
 not browser screenshots or claimed model performance.
+
+
+## Record-based substrate and seed advice (2026-11-16)
+
+AI consultation now has **변화 상담 / 상토·종자 추천** tabs. A material-selection
+question also opens the appropriate tab. `material-advisor.js` uses current-farm
+settings, up to 30 days of diary entries, recent explicit soil observations and
+follow-up answers, and same-farm seed search history. It does not import another
+farm's irrigation history or future diary entries. Matching is transparent rules
+and stored preferences, without a connected LLM or product ranking model.
+
+Substrate advice compares labels for pepper seedling use, drainage, aeration and
+water retention. Wet/dry observations change which comparison criteria appear
+first; extra watering alone is not diagnosed as excess moisture. For a farm past
+the seedling stage, the app asks when substrate will be used before showing a
+comparison search. Seed advice reuses known purpose/heat preferences, asks for
+missing region, purpose or heat, and combines those with the growing environment.
+Observed spots/pests prompt verification of resistance labels and their exact
+disease scope; they never establish a disease or required resistant cultivar.
+
+The result is an evidence-labelled selection brief with deliberate external
+comparison-search links. Manufacturer catalogs, current prices, inventory,
+individual brand/cultivar performance and supplier verification are unconnected.
+No brand, best-product claim or yield guarantee is fabricated. Preferences can be
+changed independently of retained historical seed searches.
+
+Sources verified for the selection criteria:
+
+- RDA, pepper seedling methods and substrate properties:
+  https://www.rda.go.kr/middlePopOpenPopNongsaroDBView.do?no=1112
+- Cheongyang Agricultural Technology Center, cultivar selection considerations:
+  https://www.cheongyang.go.kr/farm/sub02_01_05_01.do
