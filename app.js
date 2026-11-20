@@ -6,7 +6,7 @@ const regions=REGIONS.map(r=>r.full);
 const tasks={'파종 준비':['종자 봉투의 파종 시기와 재배 조건 확인','트레이·상토와 물 공급 상태 점검','파종일과 품종명 기록하기'],'육묘 중':['묘의 웃자람과 잎 색 관찰하기','상토의 마름·과습 상태 확인하기','밤사이 최저온도 기록하기'],'정식 준비':['지역의 서리·저온 예보 확인하기','묘의 뿌리와 건강 상태 확인하기','정식 전 순화 계획을 농사로에서 확인하기'],'정식 후':['시든 묘와 활착 상태 관찰하기','뿌리 주변의 마름·고인 물 확인하기','이상 증상 사진과 관수 내역 기록하기'],'수확 중':['열매의 이상 반점과 상처 확인하기','수확량과 품종별 상태 기록하기','사용 약제의 수확 전 안전사용기준 확인하기']};
 const external=(url,label,cls='linkbtn')=>`<a class="${cls}" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${label} ↗</a>`;
 const maplink=()=>`https://map.naver.com/p/search/${encodeURIComponent((farm.region||'')+' 고추 육묘장')}`;
-const plant=`<img class="hero-photo" src="pepper-field.webp" alt="붉은 고추가 열린 밭">`;
+const plant=`<img class="hero-photo" src="pepper-field.webp?v=20261120" alt="붉은 고추가 열린 밭">`;
 function toast(t){$('#toast').textContent=t;$('#toast').classList.add('show');$('#toast').style.opacity='1';clearTimeout(window.tt);window.tt=setTimeout(()=>{$('#toast').classList.remove('show');$('#toast').style.opacity='0'},2600)}
 function context(){return `<div class="context"><span>⌖ ${esc(farm.region||'우리 농장은 어디인가요?')}<small> · ${esc(farm.area?farm.area+' · ':'')}${esc(farm.env)} · ${esc(farm.stage)}</small></span><button class="textbtn" data-farm>변경</button></div>`}
 function intro(n,t,p){return `<div class="pageintro"><div class="eyebrow">${n}</div><h1>${t}</h1><p class="muted">${p}</p></div>`}
